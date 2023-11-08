@@ -7,6 +7,7 @@ message(STATUS "cmake source dir: ${CMAKE_SOURCE_DIR}")
 message(STATUS "library postfix: ${CMAKE_DEBUG_POSTFIX}")
 
 project(box2d LANGUAGES C CXX)
+set(CMAKE_C_STANDARD 17)
 
 option(BOX2D_BUILD_SAMPLES "Build the Box2D samples application" OFF)
 option(BOX2D_PROFILE "Enable profiling with Tracy" OFF)

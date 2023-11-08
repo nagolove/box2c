@@ -1,0 +1,5 @@
+-I../include/
+-I.
+-I../_deps/enkits-src/src/
+-I../extern/jsmn
+-I../extern/glad/include/

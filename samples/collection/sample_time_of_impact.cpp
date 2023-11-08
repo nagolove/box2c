@@ -5,6 +5,7 @@
 #include "box2d/distance.h"
 #include "box2d/math.h"
 #include "sample.h"
+#include <cstdint>
 
 extern "C"
 {

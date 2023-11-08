@@ -1,7 +1,8 @@
+cmake_minimum_required(VERSION 3.27)
 # Box2D samples app
 
 # glad for OpenGL API
-set(GLAD_DIR ${CMAKE_SOURCE_DIR}/extern/glad)
+set(GLAD_DIR ${CMAKE_SOURCE_DIR}/../extern/glad)
 
 add_library(
 	glad STATIC
@@ -16,6 +17,8 @@ SET(GLFW_BUILD_DOCS OFF CACHE BOOL "GLFW Docs")
 SET(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "GLFW Examples")
 SET(GLFW_BUILD_TESTS OFF CACHE BOOL "GLFW Tests")
 SET(GLFW_INSTALL OFF CACHE BOOL "GLFW Install")
+
+include(FetchContent)
 
 FetchContent_Declare(
 	glfw
@@ -49,7 +52,7 @@ target_link_libraries(imgui PUBLIC glfw glad)
 target_include_directories(imgui PUBLIC ${IMGUI_DIR} ${IMGUI_DIR}/backends)
 
 # jsmn for json
-set(JSMN_DIR ${CMAKE_SOURCE_DIR}/extern/jsmn)
+set(JSMN_DIR ${CMAKE_SOURCE_DIR}/../extern/jsmn)
 
 add_library(jsmn INTERFACE ${JSMN_DIR}/jsmn.h)
 target_include_directories(jsmn INTERFACE ${JSMN_DIR})
@@ -81,6 +84,7 @@ set(BOX2D_SAMPLES
 	collection/sample_vertical_stack.cpp
 )
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpermissive")
 add_executable(samples ${BOX2D_SAMPLES})
 
 set_target_properties(samples PROPERTIES
@@ -90,6 +94,8 @@ set_target_properties(samples PROPERTIES
 )
 
 target_include_directories(samples PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${JSMN_DIR})
+target_include_directories(samples PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} "../include" "../_deps/enkits-src/src")
+target_link_directories(samples PUBLIC ../_deps/enkits-build/ ../src)
 target_link_libraries(samples PUBLIC box2d imgui glfw glad enkiTS)
 
 # message(STATUS "runtime = ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")

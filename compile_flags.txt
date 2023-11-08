@@ -1,0 +1,3 @@
+-Ibox2d
+-Iextern/jsmn
+-Iextern/glad/include/

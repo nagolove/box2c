@@ -9,7 +9,7 @@
 
 extern "C"
 {
-int32_t b2_toiMaxIters, b2_toiMaxRootIters;
+extern int32_t b2_toiMaxIters, b2_toiMaxRootIters;
 }
 
 class TimeOfImpact : public Sample

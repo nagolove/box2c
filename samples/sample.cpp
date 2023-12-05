@@ -166,7 +166,7 @@ void Sample::MouseDown(b2Vec2 p, int button, int mod)
 
 		// Query the world for overlapping shapes.
 		QueryContext queryContext = {p, b2_nullBodyId};
-		b2World_QueryAABB(m_worldId, box, QueryCallback, &queryContext);
+		b2World_QueryAABB(m_worldId, QueryCallback, box,b2_defaultQueryFilter, &queryContext);
 
 		if (B2_NON_NULL(queryContext.bodyId))
 		{
@@ -244,6 +244,7 @@ void Sample::Step(Settings& settings)
 
 	b2World_EnableSleeping(m_worldId, settings.m_enableSleep);
 	b2World_EnableWarmStarting(m_worldId, settings.m_enableWarmStarting);
+	b2World_EnableContinuous(m_worldId, settings.m_enableContinuous);
 
 	if (timeStep > 0.0f)
 	{
@@ -269,7 +270,7 @@ void Sample::Step(Settings& settings)
 						  s.jointCount);
 		m_textLine += m_textIncrement;
 
-		g_draw.DrawString(5, m_textLine, "proxies/height = %d/%d", s.proxyCount, s.treeHeight);
+		g_draw.DrawString(5, m_textLine, "pairs/proxies/height = %d/%d/%d", s.pairCount, s.proxyCount, s.treeHeight);
 		m_textLine += m_textIncrement;
 
 		int32_t totalCount = 0;
@@ -375,7 +376,7 @@ void Sample::Step(Settings& settings)
 		{
 			ContactPoint* point = m_points + i;
 
-			if (0 <= point->color && point->color <= b2_graphColorCount)
+			if (settings.m_drawGraphColors && 0 <= point->color && point->color <= b2_graphColorCount)
 			{
 				// graph color
 				float pointSize = point->color == b2_graphColorCount ? 7.5f : 5.0f;

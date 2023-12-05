@@ -49,7 +49,7 @@ int HelloWorld()
 	// Define another box shape for our dynamic body.
 	b2Polygon dynamicBox = b2MakeBox(1.0f, 1.0f);
 
-	// Define the dynamic body fixture.
+	// Define the dynamic body shape
 	b2ShapeDef shapeDef = b2DefaultShapeDef();
 
 	// Set the box density to be non-zero, so it will be dynamic.
@@ -92,6 +92,28 @@ int HelloWorld()
 	ENSURE(B2_ABS(position.x) < 0.01f);
 	ENSURE(B2_ABS(position.y - 1.00f) < 0.01f);
 	ENSURE(B2_ABS(angle) < 0.01f);
+
+	return 0;
+}
+
+int EmptyWorld()
+{
+	b2WorldDef worldDef = b2DefaultWorldDef();
+	b2WorldId worldId = b2CreateWorld(&worldDef);
+	ENSURE(b2World_IsValid(worldId) == true);
+
+	float timeStep = 1.0f / 60.0f;
+	int32_t velocityIterations = 6;
+	int32_t relaxIterations = 2;
+
+	for (int32_t i = 0; i < 60; ++i)
+	{
+		b2World_Step(worldId, timeStep, velocityIterations, relaxIterations);
+	}
+
+	b2DestroyWorld(worldId);
+
+	ENSURE(b2World_IsValid(worldId) == false);
 
 	return 0;
 }

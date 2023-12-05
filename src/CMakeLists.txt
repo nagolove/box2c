@@ -12,7 +12,6 @@ set(BOX2D_SOURCE_FILES
 	body.h
 	broad_phase.c
 	broad_phase.h
-	chain_shape.h
 	contact.c
 	contact.h
 	contact_solver.c
@@ -62,6 +61,7 @@ set(BOX2D_API_FILES
 	../include/box2d/debug_draw.h
 	../include/box2d/distance.h
 	../include/box2d/dynamic_tree.h
+	../include/box2d/event_types.h
 	../include/box2d/geometry.h
 	../include/box2d/hull.h
 	../include/box2d/id.h

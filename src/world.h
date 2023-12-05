@@ -50,6 +50,7 @@ typedef struct b2World
 	b2Pool contactPool;
 	b2Pool jointPool;
 	b2Pool shapePool;
+	b2Pool chainPool;
 	b2Pool islandPool;
 
 	// These are sparse arrays that point into the pools above
@@ -57,6 +58,7 @@ typedef struct b2World
 	struct b2Contact* contacts;
 	struct b2Joint* joints;
 	struct b2Shape* shapes;
+	struct b2ChainShape* chains;
 	struct b2Island* islands;
 
 	// Per thread storage
@@ -75,6 +77,9 @@ typedef struct b2World
 	// A contact is destroyed when a shape/body is destroyed or when the shape AABBs stop overlapping.
 	// TODO_ERIN use a bit array somehow?
 	int32_t* contactAwakeIndexArray;
+
+	struct b2SensorBeginTouchEvent* sensorBeginEventArray;
+	struct b2SensorEndTouchEvent* sensorEndEventArray;
 
 	// Array of fast bodies that need continuous collision handling
 	int32_t* fastBodies;

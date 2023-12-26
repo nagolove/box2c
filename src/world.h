@@ -80,6 +80,8 @@ typedef struct b2World
 
 	struct b2SensorBeginTouchEvent* sensorBeginEventArray;
 	struct b2SensorEndTouchEvent* sensorEndEventArray;
+	struct b2ContactBeginTouchEvent* contactBeginArray;
+	struct b2ContactEndTouchEvent* contactEndArray;
 
 	// Array of fast bodies that need continuous collision handling
 	int32_t* fastBodies;
@@ -104,18 +106,17 @@ typedef struct b2World
 	b2PreSolveFcn* preSolveFcn;
 	void* preSolveContext;
 
-	b2PostSolveFcn* postSolveFcn;
-	void* postSolveContext;
-
 	uint32_t workerCount;
 	b2EnqueueTaskCallback* enqueueTaskFcn;
 	b2FinishTaskCallback* finishTaskFcn;
-	b2FinishAllTasksCallback* finishAllTasksFcn;
 	void* userTaskContext;
 
 	void* userTreeTask;
 
 	int32_t splitIslandIndex;
+
+	int32_t activeTaskCount;
+	int32_t taskCount;
 
 	bool enableSleep;
 	bool locked;

@@ -7,10 +7,17 @@
 #include "sample.h"
 #include <cstdint>
 
+<<<<<<< HEAD
 extern "C"
 {
 extern int32_t b2_toiMaxIters, b2_toiMaxRootIters;
 }
+=======
+//extern "C"
+//{
+//	extern int32_t b2_toiMaxIters, b2_toiMaxRootIters;
+//}
+>>>>>>> e1a6d0887057b5d61b1d19d38193094fb721951f
 
 class TimeOfImpact : public Sample
 {
@@ -44,8 +51,8 @@ public:
 		g_draw.DrawString(5, m_textLine, "toi = %g", output.t);
 		m_textLine += m_textIncrement;
 
-		g_draw.DrawString(5, m_textLine, "max toi iters = %d, max root iters = %d", b2_toiMaxIters,
-		                       b2_toiMaxRootIters);
+		//g_draw.DrawString(5, m_textLine, "max toi iters = %d, max root iters = %d", b2_toiMaxIters,
+		//                       b2_toiMaxRootIters);
 		m_textLine += m_textIncrement;
 
 		b2Vec2 vertices[b2_maxPolygonVertices];

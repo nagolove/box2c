@@ -1,6 +1,14 @@
 // SPDX-FileCopyrightText: 2023 Erin Catto
 // SPDX-License-Identifier: MIT
 
+/**
+ * @file types.h
+ * @brief types used by the Box2D API
+ *
+ * Mostly definition structs
+ * @see http://www.box2d.org
+ */
+
 #pragma once
 
 #include "box2d/color.h"
@@ -11,19 +19,37 @@
 #include <stddef.h>
 #include <stdint.h>
 
+// These macros handle some differences between C and C++
 #ifdef __cplusplus
 #define B2_LITERAL(T) T
+#define B2_ZERO_INIT                                                                                                             \
+	{                                                                                                                            \
+	}
 #else
 #define B2_LITERAL(T) (T)
+#define B2_ZERO_INIT                                                                                                             \
+	{                                                                                                                            \
+		0                                                                                                                        \
+	}
+#endif
+
+#ifdef NDEBUG
+#define B2_DEBUG 0
+#else
+#define B2_DEBUG 1
 #endif
 
 #define B2_ARRAY_COUNT(A) (int)(sizeof(A) / sizeof(A[0]))
 #define B2_MAYBE_UNUSED(x) ((void)(x))
 #define B2_NULL_INDEX (-1)
 
-/// 2D vector
+/// @struct b2Vec2
+/// @brief 2D vector
+///
+/// This can be used to represent a point or free vector.
 typedef struct b2Vec2
 {
+	/// coordinates
 	float x, y;
 } b2Vec2;
 
@@ -71,8 +97,7 @@ typedef struct b2AABB
 /// Ray-cast input data. The ray extends from p1 to p1 + maxFraction * (p2 - p1).
 typedef struct b2RayCastInput
 {
-	b2Vec2 p1, p2;
-	float radius;
+	b2Vec2 origin, translation;
 	float maxFraction;
 } b2RayCastInput;
 
@@ -85,6 +110,15 @@ typedef struct b2RayCastOutput
 	int32_t iterations;
 	bool hit;
 } b2RayCastOutput;
+
+typedef struct b2ShapeCastInput
+{
+	b2Vec2 points[b2_maxPolygonVertices];
+	int32_t count;
+	float radius;
+	b2Vec2 translation;
+	float maxFraction;
+} b2ShapeCastInput;
 
 /// Task interface
 /// This is prototype for a Box2D task. Your task system is expected to invoke the Box2D task with these arguments.
@@ -101,10 +135,8 @@ typedef void* b2EnqueueTaskCallback(b2TaskCallback* task, int32_t itemCount, int
 /// Finishes a user task object that wraps a Box2D task.
 typedef void b2FinishTaskCallback(void* userTask, void* userContext);
 
-/// Finishes all tasks.
-typedef void b2FinishAllTasksCallback(void* userContext);
-
-typedef struct b2WorldDef
+/// World definition used to create a simulation world. Must be initialized using b2DefaultWorldDef.
+struct b2WorldDef
 {
 	/// Gravity vector. Box2D has no up-vector defined.
 	b2Vec2 gravity;
@@ -146,10 +178,10 @@ typedef struct b2WorldDef
 	uint32_t workerCount;
 	b2EnqueueTaskCallback* enqueueTask;
 	b2FinishTaskCallback* finishTask;
-	b2FinishAllTasksCallback* finishAllTasks;
 	void* userTaskContext;
+};
 
-} b2WorldDef;
+typedef struct b2WorldDef b2WorldDef;
 
 /// The body type.
 /// static: zero mass, zero velocity, may be manually moved
@@ -169,7 +201,7 @@ typedef struct b2BodyDef
 {
 	/// The body type: static, kinematic, or dynamic.
 	/// Note: if a dynamic body would have zero mass, the mass is set to one.
-	enum b2BodyType type;
+	b2BodyType type;
 
 	/// The world position of the body. Avoid creating bodies at the origin
 	/// since this can lead to many overlapping shapes.
@@ -249,6 +281,16 @@ typedef struct b2QueryFilter
 
 static const b2QueryFilter b2_defaultQueryFilter = {0x00000001, 0xFFFFFFFF};
 
+typedef enum b2ShapeType
+{
+	b2_capsuleShape,
+	b2_circleShape,
+	b2_polygonShape,
+	b2_segmentShape,
+	b2_smoothSegmentShape,
+	b2_shapeTypeCount
+} b2ShapeType;
+
 /// Used to create a shape
 typedef struct b2ShapeDef
 {
@@ -267,14 +309,23 @@ typedef struct b2ShapeDef
 	/// Contact filtering data.
 	b2Filter filter;
 
-	/// A sensor shape collects contact information but never generates a collision
-	/// response.
+	/// A sensor shape collects contact information but never generates a collision response.
 	bool isSensor;
+
+	/// Enable sensor events for this shape. Only applies to kinematic and dynamic bodies. Ignored for sensors.
+	bool enableSensorEvents;
+
+	/// Enable contact events for this shape. Only applies to kinematic and dynamic bodies. Ignored for sensors.
+	bool enableContactEvents;
+
+	/// Enable pre-solve contact events for this shape. Only applies to dynamic bodies. These are expensive
+	///	and must be carefully handled due to multi-threading. Ignored for sensors.
+	bool enablePreSolveEvents;
 
 } b2ShapeDef;
 
 static const b2ShapeDef b2_defaultShapeDef = {
-	NULL, 0.6f, 0.0f, 0.0f, {0x00000001, 0xFFFFFFFF, 0}, false,
+	NULL, 0.6f, 0.0f, 1.0f, {0x00000001, 0xFFFFFFFF, 0}, false, true, true, false,
 };
 
 /// Used to create a chain of edges. This is designed to eliminate ghost collisions with some limitations.
@@ -313,10 +364,12 @@ typedef struct b2ChainDef
 	b2Filter filter;
 } b2ChainDef;
 
+static const b2ChainDef b2_defaultChainDef = {NULL, 0, false, NULL, 0.6f, 0.0f, {0x00000001, 0xFFFFFFFF, 0}};
+
 /// Make a world definition with default values.
 static inline b2WorldDef b2DefaultWorldDef(void)
 {
-	b2WorldDef def = {0};
+	b2WorldDef def = B2_ZERO_INIT;
 	def.gravity = B2_LITERAL(b2Vec2){0.0f, -10.0f};
 	def.restitutionThreshold = 1.0f * b2_lengthUnitsPerMeter;
 	def.contactPushoutVelocity = 3.0f * b2_lengthUnitsPerMeter;
@@ -334,7 +387,7 @@ static inline b2WorldDef b2DefaultWorldDef(void)
 /// Make a body definition with default values.
 static inline b2BodyDef b2DefaultBodyDef(void)
 {
-	b2BodyDef def = {0};
+	b2BodyDef def = B2_ZERO_INIT;
 	def.type = b2_staticBody;
 	def.position = B2_LITERAL(b2Vec2){0.0f, 0.0f};
 	def.angle = 0.0f;
@@ -353,18 +406,22 @@ static inline b2BodyDef b2DefaultBodyDef(void)
 
 static inline struct b2ShapeDef b2DefaultShapeDef(void)
 {
-	b2ShapeDef def = {0};
+	b2ShapeDef def = B2_ZERO_INIT;
 	def.friction = 0.6f;
 	def.restitution = 0.0f;
 	def.density = 0.0f;
 	def.filter = b2_defaultFilter;
 	def.isSensor = false;
+	def.enableSensorEvents = true;
+	def.enableContactEvents = true;
+	def.enablePreSolveEvents = false;
+
 	return def;
 }
 
 static inline struct b2ChainDef b2DefaultChainDef(void)
 {
-	b2ChainDef def = {0};
+	b2ChainDef def = B2_ZERO_INIT;
 	def.points = NULL;
 	def.count = 0;
 	def.loop = false;

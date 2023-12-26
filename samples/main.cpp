@@ -105,12 +105,12 @@ static void SortTests()
 	qsort(g_sampleEntries, g_sampleCount, sizeof(SampleEntry), CompareSamples);
 }
 
-static void RestartTest()
+static void RestartSample()
 {
 	delete s_sample;
-	s_settings.m_restart = true;
-	s_sample = g_sampleEntries[s_settings.m_sampleIndex].createFcn(s_settings);
-	s_settings.m_restart = false;
+	s_settings.restart = true;
+	s_sample = g_sampleEntries[s_settings.sampleIndex].createFcn(s_settings);
+	s_settings.restart = false;
 }
 
 static void CreateUI(GLFWwindow* window, const char* glslVersion)
@@ -170,8 +170,8 @@ static void ResizeWindowCallback(GLFWwindow*, int width, int height)
 {
 	g_camera.m_width = int(width / s_windowScale);
 	g_camera.m_height = int(height / s_windowScale);
-	s_settings.m_windowWidth = int(width / s_windowScale);
-	s_settings.m_windowHeight = int(height / s_windowScale);
+	s_settings.windowWidth = int(width / s_windowScale);
+	s_settings.windowHeight = int(height / s_windowScale);
 }
 
 static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -248,15 +248,15 @@ static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, i
 				break;
 
 			case GLFW_KEY_R:
-				RestartTest();
+				RestartSample();
 				break;
 
 			case GLFW_KEY_O:
-				s_settings.m_singleStep = true;
+				s_settings.singleStep = true;
 				break;
 
 			case GLFW_KEY_P:
-				s_settings.m_pause = !s_settings.m_pause;
+				s_settings.pause = !s_settings.pause;
 				break;
 
 			case GLFW_KEY_LEFT_BRACKET:
@@ -381,6 +381,8 @@ BOX2D_API bool b2_parallel;
 
 static void UpdateUI()
 {
+	int maxWorkers = enki::GetNumHardwareThreads();
+
 	float menuWidth = 180.0f;
 	if (g_draw.m_showUI)
 	{
@@ -393,40 +395,46 @@ static void UpdateUI()
 		{
 			if (ImGui::BeginTabItem("Controls"))
 			{
-				ImGui::SliderInt("Vel Iters", &s_settings.m_velocityIterations, 0, 50);
-				ImGui::SliderInt("Relax Iters", &s_settings.m_relaxIterations, 0, 50);
-				ImGui::SliderFloat("Hertz", &s_settings.m_hertz, 5.0f, 120.0f, "%.0f hz");
+				ImGui::SliderInt("Vel Iters", &s_settings.velocityIterations, 0, 50);
+				ImGui::SliderInt("Relax Iters", &s_settings.relaxIterations, 0, 50);
+				ImGui::SliderFloat("Hertz", &s_settings.hertz, 5.0f, 120.0f, "%.0f hz");
+				
+				if (ImGui::SliderInt("Workers", &s_settings.workerCount, 1, maxWorkers))
+				{
+					s_settings.workerCount = B2_CLAMP(s_settings.workerCount, 1, maxWorkers);
+					RestartSample();
+				}
 
 				ImGui::Separator();
 
-				ImGui::Checkbox("Sleep", &s_settings.m_enableSleep);
-				ImGui::Checkbox("Warm Starting", &s_settings.m_enableWarmStarting);
-				ImGui::Checkbox("Continuous", &s_settings.m_enableContinuous);
+				ImGui::Checkbox("Sleep", &s_settings.enableSleep);
+				ImGui::Checkbox("Warm Starting", &s_settings.enableWarmStarting);
+				ImGui::Checkbox("Continuous", &s_settings.enableContinuous);
 				ImGui::Checkbox("Parallel", &b2_parallel);
 
 				ImGui::Separator();
 
-				ImGui::Checkbox("Shapes", &s_settings.m_drawShapes);
-				ImGui::Checkbox("Joints", &s_settings.m_drawJoints);
-				ImGui::Checkbox("AABBs", &s_settings.m_drawAABBs);
-				ImGui::Checkbox("Contact Points", &s_settings.m_drawContactPoints);
-				ImGui::Checkbox("Contact Normals", &s_settings.m_drawContactNormals);
-				ImGui::Checkbox("Contact Impulses", &s_settings.m_drawContactImpulse);
-				ImGui::Checkbox("Friction Impulses", &s_settings.m_drawFrictionImpulse);
-				ImGui::Checkbox("Center of Masses", &s_settings.m_drawMass);
-				ImGui::Checkbox("Graph Colors", &s_settings.m_drawGraphColors);
-				ImGui::Checkbox("Statistics", &s_settings.m_drawStats);
-				ImGui::Checkbox("Profile", &s_settings.m_drawProfile);
+				ImGui::Checkbox("Shapes", &s_settings.drawShapes);
+				ImGui::Checkbox("Joints", &s_settings.drawJoints);
+				ImGui::Checkbox("AABBs", &s_settings.drawAABBs);
+				ImGui::Checkbox("Contact Points", &s_settings.drawContactPoints);
+				ImGui::Checkbox("Contact Normals", &s_settings.drawContactNormals);
+				ImGui::Checkbox("Contact Impulses", &s_settings.drawContactImpulses);
+				ImGui::Checkbox("Friction Impulses", &s_settings.drawFrictionImpulses);
+				ImGui::Checkbox("Center of Masses", &s_settings.drawMass);
+				ImGui::Checkbox("Graph Colors", &s_settings.drawGraphColors);
+				ImGui::Checkbox("Statistics", &s_settings.drawStats);
+				ImGui::Checkbox("Profile", &s_settings.drawProfile);
 
 				ImVec2 button_sz = ImVec2(-1, 0);
 				if (ImGui::Button("Pause (P)", button_sz))
 				{
-					s_settings.m_pause = !s_settings.m_pause;
+					s_settings.pause = !s_settings.pause;
 				}
 
 				if (ImGui::Button("Single Step (O)", button_sz))
 				{
-					s_settings.m_singleStep = !s_settings.m_singleStep;
+					s_settings.singleStep = !s_settings.singleStep;
 				}
 
 				if (ImGui::Button("Reset Profile", button_sz))
@@ -436,7 +444,7 @@ static void UpdateUI()
 
 				if (ImGui::Button("Restart (R)", button_sz))
 				{
-					RestartTest();
+					RestartSample();
 				}
 
 				if (ImGui::Button("Quit", button_sz))
@@ -459,7 +467,7 @@ static void UpdateUI()
 				int i = 0;
 				while (i < g_sampleCount)
 				{
-					bool categorySelected = strcmp(category, g_sampleEntries[s_settings.m_sampleIndex].category) == 0;
+					bool categorySelected = strcmp(category, g_sampleEntries[s_settings.sampleIndex].category) == 0;
 					ImGuiTreeNodeFlags nodeSelectionFlags = categorySelected ? ImGuiTreeNodeFlags_Selected : 0;
 					bool nodeOpen = ImGui::TreeNodeEx(category, nodeFlags | nodeSelectionFlags);
 
@@ -468,7 +476,7 @@ static void UpdateUI()
 						while (i < g_sampleCount && strcmp(category, g_sampleEntries[i].category) == 0)
 						{
 							ImGuiTreeNodeFlags selectionFlags = 0;
-							if (s_settings.m_sampleIndex == i)
+							if (s_settings.sampleIndex == i)
 							{
 								selectionFlags = ImGuiTreeNodeFlags_Selected;
 							}
@@ -523,12 +531,13 @@ int main(int, char**)
 	char buffer[128];
 
 	s_settings.Load();
+	s_settings.workerCount = 	B2_MIN(8, (int)enki::GetNumHardwareThreads() / 2);
 	SortTests();
 
 	glfwSetErrorCallback(glfwErrorCallback);
 
-	g_camera.m_width = s_settings.m_windowWidth;
-	g_camera.m_height = s_settings.m_windowHeight;
+	g_camera.m_width = s_settings.windowWidth;
+	g_camera.m_height = s_settings.windowHeight;
 
 	if (glfwInit() == 0)
 	{
@@ -550,7 +559,7 @@ int main(int, char**)
 	// MSAA
 	glfwWindowHint(GLFW_SAMPLES, 4);
 
-	sprintf(buffer, "Box2D Version %d.%d.%d Smooth", b2_version.major, b2_version.minor, b2_version.revision);
+	snprintf(buffer, 128, "Box2D Version %d.%d.%d Smooth", b2_version.major, b2_version.minor, b2_version.revision);
 
 	if (GLFWmonitor* primaryMonitor = glfwGetPrimaryMonitor())
 	{
@@ -605,12 +614,13 @@ int main(int, char**)
 	glfwSetCursorPosCallback(g_mainWindow, MouseMotionCallback);
 	glfwSetScrollCallback(g_mainWindow, ScrollCallback);
 
+	// todo put this in s_settings
 	g_draw.Create();
 	CreateUI(g_mainWindow, glslVersion);
 
-	s_settings.m_sampleIndex = B2_CLAMP(s_settings.m_sampleIndex, 0, g_sampleCount - 1);
-	s_selection = s_settings.m_sampleIndex;
-	s_sample = g_sampleEntries[s_settings.m_sampleIndex].createFcn(s_settings);
+	s_settings.sampleIndex = B2_CLAMP(s_settings.sampleIndex, 0, g_sampleCount - 1);
+	s_selection = s_settings.sampleIndex;
+	s_sample = g_sampleEntries[s_settings.sampleIndex].createFcn(s_settings);
 
 	glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
 
@@ -668,8 +678,8 @@ int main(int, char**)
 
 		if (g_draw.m_showUI)
 		{
-			const SampleEntry& entry = g_sampleEntries[s_settings.m_sampleIndex];
-			sprintf(buffer, "%s : %s", entry.category, entry.name);
+			const SampleEntry& entry = g_sampleEntries[s_settings.sampleIndex];
+			snprintf(buffer, 128, "%s : %s", entry.category, entry.name);
 			s_sample->DrawTitle(buffer);
 		}
 
@@ -683,13 +693,13 @@ int main(int, char**)
 
 		// if (g_draw.m_showUI)
 		{
-			sprintf(buffer, "%.1f ms", 1000.0f * frameTime);
+			snprintf(buffer, 128, "%.1f ms", 1000.0f * frameTime);
 
 			ImGui::Begin("Overlay", nullptr,
 						ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_AlwaysAutoResize |
 							ImGuiWindowFlags_NoScrollbar);
 			ImGui::SetCursorPos(ImVec2(5.0f, g_camera.m_height - 20.0f));
-			ImGui::TextColored(ImColor(153, 230, 153, 255), buffer);
+			ImGui::TextColored(ImColor(153, 230, 153, 255), "%s", buffer);
 			ImGui::End();
 		}
 
@@ -700,12 +710,12 @@ int main(int, char**)
 
 		FrameMark;
 
-		if (s_selection != s_settings.m_sampleIndex)
+		if (s_selection != s_settings.sampleIndex)
 		{
 			g_camera.ResetView();
-			s_settings.m_sampleIndex = s_selection;
+			s_settings.sampleIndex = s_selection;
 			delete s_sample;
-			s_sample = g_sampleEntries[s_settings.m_sampleIndex].createFcn(s_settings);
+			s_sample = g_sampleEntries[s_settings.sampleIndex].createFcn(s_settings);
 		}
 
 		glfwPollEvents();

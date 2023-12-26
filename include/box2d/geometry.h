@@ -91,6 +91,8 @@ BOX2D_API b2Polygon b2MakeRoundedBox(float hx, float hy, float radius);
 BOX2D_API b2Polygon b2MakeOffsetBox(float hx, float hy, b2Vec2 center, float angle);
 BOX2D_API b2Polygon b2MakeCapsule(b2Vec2 p1, b2Vec2 p2, float radius);
 
+BOX2D_API b2Polygon b2TransformPolygon(b2Transform transform, const b2Polygon* polygon);
+
 /// Compute mass properties
 BOX2D_API b2MassData b2ComputeCircleMass(const b2Circle* shape, float density);
 BOX2D_API b2MassData b2ComputeCapsuleMass(const b2Capsule* shape, float density);
@@ -112,3 +114,8 @@ BOX2D_API b2RayCastOutput b2RayCastCircle(const b2RayCastInput* input, const b2C
 BOX2D_API b2RayCastOutput b2RayCastCapsule(const b2RayCastInput* input, const b2Capsule* shape);
 BOX2D_API b2RayCastOutput b2RayCastSegment(const b2RayCastInput* input, const b2Segment* shape, bool oneSided);
 BOX2D_API b2RayCastOutput b2RayCastPolygon(const b2RayCastInput* input, const b2Polygon* shape);
+
+BOX2D_API b2RayCastOutput b2ShapeCastCircle(const b2ShapeCastInput* input, const b2Circle* shape);
+BOX2D_API b2RayCastOutput b2ShapeCastCapsule(const b2ShapeCastInput* input, const b2Capsule* shape);
+BOX2D_API b2RayCastOutput b2ShapeCastSegment(const b2ShapeCastInput* input, const b2Segment* shape);
+BOX2D_API b2RayCastOutput b2ShapeCastPolygon(const b2ShapeCastInput* input, const b2Polygon* shape);

@@ -4,6 +4,7 @@
 #include "graph.h"
 
 #include "allocate.h"
+#include "arena_allocator.h"
 #include "array.h"
 #include "body.h"
 #include "contact.h"
@@ -12,8 +13,8 @@
 #include "joint.h"
 #include "shape.h"
 #include "solver_data.h"
-#include "stack_allocator.h"
 #include "world.h"
+#include "x86/sse2.h"
 
 #include "box2d/aabb.h"
 
@@ -22,10 +23,14 @@
 #include <stdbool.h>
 #include <string.h>
 
-// Kinematic bodies have to be treated like dynamic bodies in graph coloring. Unlike static bodies, we cannot use a dummy solver body for
-// kinematic bodies. We cannot access a kinematic body from multiple threads efficiently because the SIMD solver body scatter would write to
-// the same kinematic body from multiple threads. Even if these writes don't modify the body, they will cause horrible cache stalls. To make
-// this feasible I would need a way to block these writes.
+// Solver using graph coloring. Islands are only used for sleep.
+// High-Performance Physical Simulations on Next-Generation Architecture with Many Cores
+// http://web.eecs.umich.edu/~msmelyan/papers/physsim_onmanycore_itj.pdf
+
+// Kinematic bodies have to be treated like dynamic bodies in graph coloring. Unlike static bodies, we cannot use a dummy solver
+// body for kinematic bodies. We cannot access a kinematic body from multiple threads efficiently because the SIMD solver body
+// scatter would write to the same kinematic body from multiple threads. Even if these writes don't modify the body, they will
+// cause horrible cache stalls. To make this feasible I would need a way to block these writes.
 
 // This is used for debugging making all constraints be assigned to overflow.
 #define B2_FORCE_OVERFLOW 0
@@ -533,7 +538,7 @@ static void b2SolveJoints(int32_t startIndex, int32_t endIndex, b2SolverTaskCont
 		b2Joint* joint = joints + index;
 		B2_ASSERT(b2ObjectValid(&joint->object) == true);
 
-		b2SolveJointVelocity(joint, stepContext, useBias);
+		b2SolveJoint(joint, stepContext, useBias);
 	}
 
 	b2TracyCZoneEnd(solve_joints);
@@ -696,7 +701,7 @@ static void b2FinalizeBodiesTask(int32_t startIndex, int32_t endIndex, uint32_t 
 					b2SetBit(shapeBitSet, shapeIndex);
 				}
 			}
-			
+
 			shapeIndex = shape->nextShapeIndex;
 		}
 
@@ -827,7 +832,8 @@ static inline int32_t GetWorkerStartIndex(int32_t workerIndex, int32_t blockCoun
 	return blocksPerWorker * workerIndex + B2_MIN(remainder, workerIndex);
 }
 
-static void b2ExecuteStage(b2SolverStage* stage, b2SolverTaskContext* context, int previousSyncIndex, int syncIndex, int32_t workerIndex)
+static void b2ExecuteStage(b2SolverStage* stage, b2SolverTaskContext* context, int previousSyncIndex, int syncIndex,
+						   int32_t workerIndex)
 {
 	int32_t completedCount = 0;
 	b2SolverBlock* blocks = stage->blocks;
@@ -914,7 +920,7 @@ static void b2ExecuteMainStage(b2SolverStage* stage, b2SolverTaskContext* contex
 
 		while (atomic_load(&stage->completionCount) != blockCount)
 		{
-			_mm_pause();
+			simde_mm_pause();
 		}
 
 		atomic_store(&stage->completionCount, 0);
@@ -969,7 +975,7 @@ void b2SolverTask(int32_t startIndex, int32_t endIndex, uint32_t threadIndexDont
 		B2_ASSERT(stages[stageIndex].type == b2_stagePrepareJoints);
 		b2ExecuteMainStage(stages + stageIndex, context, syncBits);
 		stageIndex += 1;
-		jointSyncIndex += 1;
+		// jointSyncIndex += 1;
 
 		uint32_t constraintSyncIndex = 1;
 		syncBits = (constraintSyncIndex << 16) | stageIndex;
@@ -1048,7 +1054,7 @@ void b2SolverTask(int32_t startIndex, int32_t endIndex, uint32_t threadIndexDont
 				b2ExecuteMainStage(stages + iterStageIndex, context, syncBits);
 				iterStageIndex += 1;
 			}
-			graphSyncIndex += 1;
+			// graphSyncIndex += 1;
 
 			b2ApplyOverflowRestitution(context);
 		}
@@ -1077,7 +1083,7 @@ void b2SolverTask(int32_t startIndex, int32_t endIndex, uint32_t threadIndexDont
 		uint32_t syncBits = atomic_load(&context->syncBits);
 		while (syncBits == lastSyncBits)
 		{
-			_mm_pause();
+			simde_mm_pause();
 			syncBits = atomic_load(&context->syncBits);
 		}
 
@@ -1138,7 +1144,8 @@ static void b2SolveGraph(b2World* world, b2StepContext* stepContext)
 	// Reserve space for awake bodies
 	b2Body* bodies = world->bodies;
 	b2Body** awakeBodies = b2AllocateStackItem(world->stackAllocator, awakeBodyCount * sizeof(b2Body*), "awake bodies");
-	b2SolverBody* solverBodies = b2AllocateStackItem(world->stackAllocator, awakeBodyCount * sizeof(b2SolverBody), "solver bodies");
+	b2SolverBody* solverBodies =
+		b2AllocateStackItem(world->stackAllocator, awakeBodyCount * sizeof(b2SolverBody), "solver bodies");
 
 	// Map from solver body to body
 	// TODO_ERIN have body directly reference solver body for user access?
@@ -1176,7 +1183,7 @@ static void b2SolveGraph(b2World* world, b2StepContext* stepContext)
 
 			awakeBodies[index] = body;
 
-			B2_ASSERT(0 < bodyIndex && bodyIndex < bodyCapacity);
+			B2_ASSERT(0 <= bodyIndex && bodyIndex < bodyCapacity);
 			bodyToSolverMap[bodyIndex] = index;
 			solverToBodyMap[index] = bodyIndex;
 
@@ -1296,8 +1303,8 @@ static void b2SolveGraph(b2World* world, b2StepContext* stepContext)
 
 	int32_t overflowContactCount = b2Array(graph->overflow.contactArray).count;
 	graph->occupancy[b2_overflowIndex] = overflowContactCount;
-	graph->overflow.contactConstraints =
-		b2AllocateStackItem(world->stackAllocator, overflowContactCount * sizeof(b2ContactConstraint), "overflow contact constraint");
+	graph->overflow.contactConstraints = b2AllocateStackItem(
+		world->stackAllocator, overflowContactCount * sizeof(b2ContactConstraint), "overflow contact constraint");
 
 	// Distribute transient constraints to each graph color
 	{
@@ -1336,7 +1343,6 @@ static void b2SolveGraph(b2World* world, b2StepContext* stepContext)
 
 			base += colorContactCountSIMD;
 		}
-	
 	}
 
 	// Define work blocks for preparing contacts and storing contact impulses
@@ -1392,9 +1398,12 @@ static void b2SolveGraph(b2World* world, b2StepContext* stepContext)
 
 	b2SolverStage* stages = b2AllocateStackItem(world->stackAllocator, stageCount * sizeof(b2SolverStage), "stages");
 	b2SolverBlock* bodyBlocks = b2AllocateStackItem(world->stackAllocator, bodyBlockCount * sizeof(b2SolverBlock), "body blocks");
-	b2SolverBlock* contactBlocks = b2AllocateStackItem(world->stackAllocator, contactBlockCount * sizeof(b2SolverBlock), "contact blocks");
-	b2SolverBlock* jointBlocks = b2AllocateStackItem(world->stackAllocator, jointBlockCount * sizeof(b2SolverBlock), "joint blocks");
-	b2SolverBlock* graphBlocks = b2AllocateStackItem(world->stackAllocator, graphBlockCount * sizeof(b2SolverBlock), "graph blocks");
+	b2SolverBlock* contactBlocks =
+		b2AllocateStackItem(world->stackAllocator, contactBlockCount * sizeof(b2SolverBlock), "contact blocks");
+	b2SolverBlock* jointBlocks =
+		b2AllocateStackItem(world->stackAllocator, jointBlockCount * sizeof(b2SolverBlock), "joint blocks");
+	b2SolverBlock* graphBlocks =
+		b2AllocateStackItem(world->stackAllocator, graphBlockCount * sizeof(b2SolverBlock), "graph blocks");
 
 	// Split an awake island. This modifies:
 	// - stack allocator
@@ -1410,6 +1419,8 @@ static void b2SolveGraph(b2World* world, b2StepContext* stepContext)
 		if (b2_parallel)
 		{
 			splitIslandTask = world->enqueueTaskFcn(&b2SplitIslandTask, 1, 1, world, world->userTaskContext);
+			world->taskCount += 1;
+			world->activeTaskCount += splitIslandTask == NULL ? 0 : 1;
 		}
 		else
 		{
@@ -1480,7 +1491,8 @@ static void b2SolveGraph(b2World* world, b2StepContext* stepContext)
 
 		if (colorJointBlockCount > 0)
 		{
-			baseGraphBlock[colorJointBlockCount - 1].count = (int16_t)(colorJointCounts[i] - (colorJointBlockCount - 1) * colorJointBlockSize);
+			baseGraphBlock[colorJointBlockCount - 1].count =
+				(int16_t)(colorJointCounts[i] - (colorJointBlockCount - 1) * colorJointBlockSize);
 			baseGraphBlock += colorJointBlockCount;
 		}
 
@@ -1497,7 +1509,8 @@ static void b2SolveGraph(b2World* world, b2StepContext* stepContext)
 
 		if (colorContactBlockCount > 0)
 		{
-			baseGraphBlock[colorContactBlockCount - 1].count = (int16_t)(colorContactCounts[i] - (colorContactBlockCount - 1) * colorContactBlockSize);
+			baseGraphBlock[colorContactBlockCount - 1].count =
+				(int16_t)(colorContactCounts[i] - (colorContactBlockCount - 1) * colorContactBlockSize);
 			baseGraphBlock += colorContactBlockCount;
 		}
 	}
@@ -1635,6 +1648,8 @@ static void b2SolveGraph(b2World* world, b2StepContext* stepContext)
 			workerContext[i].context = &context;
 			workerContext[i].workerIndex = i;
 			workerContext[i].userTask = world->enqueueTaskFcn(b2SolverTask, 1, 1, workerContext + i, world->userTaskContext);
+			world->taskCount += 1;
+			world->activeTaskCount += workerContext[i].userTask == NULL ? 0 : 1;
 		}
 	}
 	else
@@ -1653,15 +1668,21 @@ static void b2SolveGraph(b2World* world, b2StepContext* stepContext)
 	if (splitIslandTask != NULL)
 	{
 		world->finishTaskFcn(splitIslandTask, world->userTaskContext);
-		world->splitIslandIndex = B2_NULL_INDEX;
+		world->activeTaskCount -= 1;
 	}
+
+	world->splitIslandIndex = B2_NULL_INDEX;
 
 	// Finish solve
 	if (b2_parallel)
 	{
 		for (int32_t i = 0; i < workerCount; ++i)
 		{
-			world->finishTaskFcn(workerContext[i].userTask, world->userTaskContext);
+			if (workerContext[i].userTask != NULL)
+			{
+				world->finishTaskFcn(workerContext[i].userTask, world->userTaskContext);
+				world->activeTaskCount -= 1;
+			}
 		}
 	}
 
@@ -1681,6 +1702,7 @@ static void b2SolveGraph(b2World* world, b2StepContext* stepContext)
 	if (b2_parallel)
 	{
 		finalizeBodiesTask = world->enqueueTaskFcn(b2FinalizeBodiesTask, awakeBodyCount, 16, &context, world->userTaskContext);
+		world->taskCount += 1;
 		world->finishTaskFcn(finalizeBodiesTask, world->userTaskContext);
 	}
 	else
@@ -2113,6 +2135,7 @@ void b2Solve(b2World* world, b2StepContext* context)
 		if (world->userTreeTask != NULL)
 		{
 			world->finishTaskFcn(world->userTreeTask, world->userTaskContext);
+			world->activeTaskCount -= 1;
 			world->userTreeTask = NULL;
 		}
 	}
@@ -2182,6 +2205,7 @@ void b2Solve(b2World* world, b2StepContext* context)
 		int32_t minRange = 8;
 		void* userContinuousTask =
 			world->enqueueTaskFcn(&b2ContinuousParallelForTask, world->fastBodyCount, minRange, world, world->userTaskContext);
+		world->taskCount += 1;
 		world->finishTaskFcn(userContinuousTask, world->userTaskContext);
 	}
 	else
@@ -2216,6 +2240,7 @@ void b2Solve(b2World* world, b2StepContext* context)
 				b2Shape* shape = shapes + shapeIndex;
 				if (shape->enlargedAABB == false)
 				{
+					shapeIndex = shape->nextShapeIndex;
 					continue;
 				}
 

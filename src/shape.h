@@ -7,26 +7,18 @@
 
 #include "box2d/distance.h"
 #include "box2d/geometry.h"
+#include "box2d/id.h"
 #include "box2d/types.h"
 
 typedef struct b2BroadPhase b2BroadPhase;
-
-typedef enum b2ShapeType
-{
-	b2_capsuleShape,
-	b2_circleShape,
-	b2_polygonShape,
-	b2_segmentShape,
-	b2_smoothSegmentShape,
-	b2_shapeTypeCount
-} b2ShapeType;
+typedef struct b2World b2World;
 
 typedef struct b2Shape
 {
 	b2Object object;
 	int32_t bodyIndex;
 	int32_t nextShapeIndex;
-	enum b2ShapeType type;
+	b2ShapeType type;
 	float density;
 	float friction;
 	float restitution;
@@ -40,7 +32,9 @@ typedef struct b2Shape
 	void* userData;
 
 	bool isSensor;
-	bool reportContacts;
+	bool enableSensorEvents;
+	bool enableContactEvents;
+	bool enablePreSolveEvents;
 	bool enlargedAABB;
 	bool isFast;
 
@@ -74,3 +68,6 @@ b2Vec2 b2GetShapeCentroid(const b2Shape* shape);
 b2DistanceProxy b2MakeShapeDistanceProxy(const b2Shape* shape);
 
 b2RayCastOutput b2RayCastShape(const b2RayCastInput* input, const b2Shape* shape, b2Transform xf);
+b2RayCastOutput b2ShapeCastShape(const b2ShapeCastInput* input, const b2Shape* shape, b2Transform xf);
+
+b2Shape* b2GetShape(b2World* world, b2ShapeId shapeId);

@@ -1,16 +1,20 @@
-﻿# Box2D project
-
-cmake_minimum_required(VERSION 3.23)
+﻿cmake_minimum_required(VERSION 3.23)
 include(FetchContent)
 
 message(STATUS "cmake source dir: ${CMAKE_SOURCE_DIR}")
 message(STATUS "library postfix: ${CMAKE_DEBUG_POSTFIX}")
 
-project(box2d LANGUAGES C CXX)
-set(CMAKE_C_STANDARD 17)
+project(box2d VERSION 3.0.0 LANGUAGES C CXX)
 
 option(BOX2D_BUILD_SAMPLES "Build the Box2D samples application" OFF)
+option(BOX2D_BUILD_DOCS "Build the Box2D documentation" OFF)
 option(BOX2D_PROFILE "Enable profiling with Tracy" OFF)
+
+# Hide internal functions
+# todo not sure if this matters in C
+# https://gcc.gnu.org/wiki/Visibility
+# set(CMAKE_C_VISIBILITY_PRESET hidden)
+# set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -35,6 +39,7 @@ endif()
 
 SET(ENKITS_BUILD_EXAMPLES OFF CACHE BOOL "Build enkiTS examples")
 
+# Used in tests and samples
 FetchContent_Declare(
 	enkits
 	GIT_REPOSITORY https://github.com/dougbinks/enkiTS.git
@@ -44,19 +49,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(enkits)
 
-if (BOX2D_PROFILE)
-	add_compile_definitions(BOX2D_PROFILE)
-
-	FetchContent_Declare(
-		tracy
-		GIT_REPOSITORY https://github.com/wolfpld/tracy.git
-		GIT_TAG master
-		GIT_SHALLOW TRUE
-		GIT_PROGRESS TRUE
-	)
-	FetchContent_MakeAvailable(tracy)
-endif()
-
+add_subdirectory(extern/simde)
 add_subdirectory(test)
 add_subdirectory(src)
 
@@ -70,6 +63,6 @@ if (BOX2D_BUILD_SAMPLES)
 	endif()	
 endif()
 
-# https://stackoverflow.com/questions/72635402/how-to-set-working-directory-in-cmake-visual-studio-2022
-# launch.vs.json
-# "currentDir": "${workspaceRoot}"
+if (BOX2D_BUILD_DOCS)
+	add_subdirectory(docs)
+endif()

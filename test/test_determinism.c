@@ -85,14 +85,6 @@ static void FinishTask(void* userTask, void* userContext)
 	enkiWaitForTaskSet(scheduler, task);
 }
 
-static void FinishAllTasks(void* userContext)
-{
-	B2_MAYBE_UNUSED(userContext);
-
-	enkiWaitForAll(scheduler);
-	taskCount = 0;
-}
-
 void TiltedStacks(int testIndex, int workerCount)
 {
 	scheduler = enkiNewTaskScheduler();
@@ -113,7 +105,6 @@ void TiltedStacks(int testIndex, int workerCount)
 	worldDef.gravity = gravity;
 	worldDef.enqueueTask = EnqueueTask;
 	worldDef.finishTask = FinishTask;
-	worldDef.finishAllTasks = FinishAllTasks;
 	worldDef.workerCount = workerCount;
 	worldDef.enableSleep = false;
 	worldDef.bodyCapacity = 1024;
@@ -188,7 +179,7 @@ void TiltedStacks(int testIndex, int workerCount)
 }
 
 // Test multi-threaded determinism.
-int DeterminismTest()
+int DeterminismTest(void)
 {
 	// Test 1 : 4 threads
 	TiltedStacks(0, 16);
@@ -202,7 +193,7 @@ int DeterminismTest()
 		b2Vec2 p1 = finalPositions[0][i];
 		b2Vec2 p2 = finalPositions[1][i];
 		float a1 = finalAngles[0][i];
-		float a2 = finalAngles[0][i];
+		float a2 = finalAngles[1][i];
 
 		ENSURE(p1.x == p2.x);
 		ENSURE(p1.y == p2.y);

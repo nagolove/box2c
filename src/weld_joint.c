@@ -23,7 +23,7 @@
 // J = [0 0 -1 0 0 1]
 // K = invI1 + invI2
 
-void b2PrepareWeld(b2Joint* base, b2StepContext* context)
+void b2PrepareWeldJoint(b2Joint* base, b2StepContext* context)
 {
 	B2_ASSERT(base->type == b2_weldJoint);
 
@@ -71,6 +71,13 @@ void b2PrepareWeld(b2Joint* base, b2StepContext* context)
 	if (linearHertz == 0.0f)
 	{
 		linearHertz = 0.25f * context->velocityIterations * context->inv_dt;
+
+		// no warm staring
+		joint->linearImpulse = b2Vec2_zero;
+	}
+	else
+	{
+		joint->linearImpulse = b2MulSV(context->dtRatio, joint->linearImpulse);
 	}
 
 	{
@@ -86,6 +93,13 @@ void b2PrepareWeld(b2Joint* base, b2StepContext* context)
 	if (angularHertz == 0.0f)
 	{
 		angularHertz = 0.25f * context->velocityIterations * context->inv_dt;
+
+		// no warm staring
+		joint->angularImpulse = 0.0f;
+	}
+	else
+	{
+		joint->angularImpulse = context->dtRatio * joint->angularImpulse;
 	}
 
 	{
@@ -97,18 +111,51 @@ void b2PrepareWeld(b2Joint* base, b2StepContext* context)
 		joint->angularMassCoefficient = a * joint->angularImpulseCoefficient;
 	}
 
-	// TODO_ERIN warm start intentional softness?
-	joint->pivotImpulse = b2Vec2_zero;
-	joint->axialImpulse = 0.0f;
+	if (context->enableWarmStarting)
+	{
+		float dtRatio = context->dtRatio;
+
+		// Soft step works best when bilateral constraints have no warm starting.
+		joint->linearImpulse.x = dtRatio;
+		joint->linearImpulse.y = dtRatio;
+		joint->angularImpulse *= dtRatio;
+	}
+	else
+	{
+		joint->linearImpulse = b2Vec2_zero;
+		joint->angularImpulse = 0.0f;
+	}
 }
 
-void b2WarmStartWeld(b2Joint* base, b2StepContext* context)
+void b2WarmStartWeldJoint(b2Joint* base, b2StepContext* context)
 {
-	B2_MAYBE_UNUSED(base);
-	B2_MAYBE_UNUSED(context);
+	b2WeldJoint* joint = &base->weldJoint;
+
+	b2SolverBody* bodyA = context->solverBodies + joint->indexA;
+	b2Vec2 vA = bodyA->linearVelocity;
+	float wA = bodyA->angularVelocity;
+	float mA = bodyA->invMass;
+	float iA = bodyA->invI;
+
+	b2SolverBody* bodyB = context->solverBodies + joint->indexB;
+	b2Vec2 vB = bodyB->linearVelocity;
+	float wB = bodyB->angularVelocity;
+	float mB = bodyB->invMass;
+	float iB = bodyB->invI;
+
+	vA = b2MulSub(vA, mA, joint->linearImpulse);
+	wA -= iA * (b2Cross(joint->rA, joint->linearImpulse) + joint->angularImpulse);
+
+	vB = b2MulAdd(vB, mB, joint->linearImpulse);
+	wB += iB * (b2Cross(joint->rB, joint->linearImpulse) + joint->angularImpulse);
+
+	bodyA->linearVelocity = vA;
+	bodyA->angularVelocity = wA;
+	bodyB->linearVelocity = vB;
+	bodyB->angularVelocity = wB;
 }
 
-void b2SolveWeldVelocity(b2Joint* base, const b2StepContext* context, bool useBias)
+void b2SolveWeldJoint(b2Joint* base, const b2StepContext* context, bool useBias)
 {
 	B2_ASSERT(base->type == b2_weldJoint);
 
@@ -166,8 +213,8 @@ void b2SolveWeldVelocity(b2Joint* base, const b2StepContext* context, bool useBi
 	{
 		float Cdot = wB - wA;
 		float b = joint->axialMass * (Cdot + angularBias);
-		float impulse = -angularMassScale * b - angularImpulseScale * joint->axialImpulse;
-		joint->axialImpulse += impulse;
+		float impulse = -angularMassScale * b - angularImpulseScale * joint->angularImpulse;
+		joint->angularImpulse += impulse;
 		wA -= iA * impulse;
 		wB += iB * impulse;
 	}
@@ -179,11 +226,11 @@ void b2SolveWeldVelocity(b2Joint* base, const b2StepContext* context, bool useBi
 		b2Vec2 b = b2MulMV(joint->pivotMass, b2Add(Cdot, linearBias));
 
 		b2Vec2 impulse = {
-			-linearMassScale * b.x - linearImpulseScale * joint->pivotImpulse.x,
-			-linearMassScale * b.y - linearImpulseScale * joint->pivotImpulse.y,
+			-linearMassScale * b.x - linearImpulseScale * joint->linearImpulse.x,
+			-linearMassScale * b.y - linearImpulseScale * joint->linearImpulse.y,
 		};
 
-		joint->pivotImpulse = b2Add(joint->pivotImpulse, impulse);
+		joint->linearImpulse = b2Add(joint->linearImpulse, impulse);
 
 		vA = b2MulSub(vA, mA, impulse);
 		wA -= iA * b2Cross(rA, impulse);

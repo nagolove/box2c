@@ -17,10 +17,10 @@
 
 struct Settings;
 
-#ifdef _DEBUG
-constexpr bool g_sampleDebug = true;
-#else
+#ifdef NDEBUG
 constexpr bool g_sampleDebug = false;
+#else
+constexpr bool g_sampleDebug = true;
 #endif
 
 #define RAND_LIMIT 32767
@@ -73,7 +73,7 @@ class SampleTask : public enki::ITaskSet
 	void* m_taskContext = nullptr;
 };
 
-constexpr int32_t maxTasks = 1024;
+constexpr int32_t maxTasks = 64;
 
 class Sample
 {
@@ -110,8 +110,7 @@ class Sample
 	int32_t m_taskCount;
 
 	b2BodyId m_groundBodyId;
-	ContactPoint m_points[k_maxContactPoints];
-	std::atomic<long> m_pointCount;
+
 	// DestructionListener m_destructionListener;
 	int32_t m_textLine;
 	b2WorldId m_worldId;
@@ -120,7 +119,6 @@ class Sample
 	int32_t m_textIncrement;
 	b2Profile m_maxProfile;
 	b2Profile m_totalProfile;
-	bool m_collectContacts;
 };
 
 typedef Sample* SampleCreateFcn(const Settings& settings);
